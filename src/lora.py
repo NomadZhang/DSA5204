@@ -45,10 +45,11 @@ class LoRALinear(nn.Module):
 
         self.r = r
         self.alpha = alpha
-
+        # Ensure the low-rank matrices have the same dtype as the original weights
+        weight_dtype = linear_layer.weight.dtype
         # Low-rank matrices
-        self.A = nn.Parameter(torch.randn(r, in_features) * 0.01)
-        self.B = nn.Parameter(torch.zeros(out_features, r))
+        self.A = nn.Parameter(torch.randn(r, in_features, dtype=weight_dtype) * 0.01)
+        self.B = nn.Parameter(torch.zeros(out_features, r, dtype=weight_dtype))
 
         # Scaling factor used in LoRA
         self.scaling = alpha / r
