@@ -101,14 +101,15 @@ def _tokenize_prompt_response(prompt: str, response: str, tokenizer, max_length:
     response_text = response + eos_suffix if eos_suffix and not response.endswith(eos_suffix) else response
     response_ids = tokenizer(response_text, add_special_tokens=False)["input_ids"]
 
+    # Reserve label space for the response so evaluation does not end up with all -100 labels.
+    min_response_tokens = min(len(response_ids), max(16, max_length // 4))
+    prompt_budget = max_length - min_response_tokens
+    prompt_ids = prompt_ids[: max(prompt_budget, 0)]
+    response_ids = response_ids[: max_length - len(prompt_ids)]
+
     input_ids = prompt_ids + response_ids
     labels = [-100] * len(prompt_ids) + response_ids.copy()
     attention_mask = [1] * len(input_ids)
-
-    if len(input_ids) > max_length:
-        input_ids = input_ids[:max_length]
-        labels = labels[:max_length]
-        attention_mask = attention_mask[:max_length]
 
     pad_length = max_length - len(input_ids)
     if pad_length > 0:
@@ -149,6 +150,11 @@ def load_and_prepare_datasets(
         batched=True,
         remove_columns=raw_dataset.column_names,
         desc=f"Tokenizing with max_length={max_length}",
+    )
+
+    tokenized_splits = tokenized_splits.filter(
+        lambda example: any(label != -100 for label in example["labels"]),
+        desc="Filtering examples with no supervised tokens",
     )
     return raw_splits, tokenized_splits
 
